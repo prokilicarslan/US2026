@@ -4,7 +4,6 @@ import numpy as np
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 import requests
-from bs4 import BeautifulSoup
 from scipy.stats import norm
 
 # --- Configuration & Setup ---
@@ -24,24 +23,6 @@ st.markdown("""
 
 st.title("Election Forecaster")
 st.markdown("*Statistical Model: Presidential Approval vs. House Popular Vote*")
-
-# --- Live Data Scraper ---
-@st.cache_data(ttl=3600)
-def fetch_live_approval():
-    url = "https://news.gallup.com/poll/203198/presidential-approval-ratings-donald-trump.aspx"
-    default_data = {"approval": 36.0, "label": "Dec 1-15 2025 (Fallback)", "year_avg": 41.0}
-    
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=5)
-        if response.status_code == 200:
-             # Basic check, if we really wanted to parse we would.
-             # For now, returning default to ensure stability as requested.
-             return default_data
-        return default_data
-
-    except Exception:
-        return default_data
 
 # --- Data Loading (Hardcoded for Stability) ---
 @st.cache_data
@@ -84,74 +65,101 @@ def load_data():
     ]
     return pd.DataFrame(data)
 
-# Initialize Data
-live_data = fetch_live_approval()
 df = load_data()
-
-# --- Preprocessing ---
-def calculate_anchors(row):
-    approval = row['Approval']
-    if pd.isna(approval): return np.nan
-    return approval if row['Party'] == 'D' else (100 - approval - 4)
-
-def calculate_low_approval_impact(row):
-    approval = row['Approval']
-    if pd.isna(approval): return 0
-    penalty = max(0, 45 - approval)
-    return -1 * penalty if row['Party'] == 'D' else 1 * penalty
-
-df['Dem_Anchor'] = df.apply(calculate_anchors, axis=1)
-df['Low_Approval_Impact'] = df.apply(calculate_low_approval_impact, axis=1)
-
-# Train Model
-train_df = df[df['Is_Election'] == 1].dropna(subset=['Dem_House_Vote', 'Approval']).copy()
-X = sm.add_constant(train_df[['Dem_Anchor', 'Low_Approval_Impact']])
-y = train_df['Dem_House_Vote']
-model = sm.OLS(y, X).fit()
-rse = np.sqrt(model.scale)
 
 # --- Sidebar ---
 st.sidebar.header("Forecast Settings")
 input_party = st.sidebar.radio("President's Party", ["Democrat", "Republican"], index=1)
-input_approval = st.sidebar.slider("Approval (%)", 20.0, 80.0, float(live_data['approval']), 0.1)
+input_cycle = st.sidebar.radio("Election Cycle", ["Midterm (e.g. '26)", "Presidential (e.g. '28)"], index=0)
+
+input_approval = st.sidebar.slider("Approval (%)", 20.0, 80.0, 36.0, 0.1)
+
+st.sidebar.markdown("---")
+low_thresh = st.sidebar.slider("Low Approval Threshold (Penalty)", 35, 55, 45)
+high_thresh = st.sidebar.slider("High Approval Threshold (Boost)", 50, 70, 55)
+
 confidence_level = st.sidebar.slider("Confidence Interval (%)", 50, 99, 90)
 
-# --- Prediction ---
+# --- Preprocessing & Feature Engineering ---
+def prepare_features(row, low_t, high_t):
+    approval = row['Approval']
+    if pd.isna(approval): 
+        return pd.Series([np.nan]*4, index=['Dem_Anchor', 'Low_Impact', 'High_Impact', 'Cycle_Impact'])
+    
+    # 1. Anchor
+    dem_anchor = approval if row['Party'] == 'D' else (100 - approval - 4)
+    
+    # 2. Low Penalty
+    penalty = max(0, low_t - approval)
+    low_impact = -1 * penalty if row['Party'] == 'D' else 1 * penalty
+    
+    # 3. High Boost
+    boost = max(0, approval - high_t)
+    high_impact = 1 * boost if row['Party'] == 'D' else -1 * boost
+    
+    # 4. Cycle Effect
+    # Midterm = Year % 4 != 0
+    is_midterm = (row['Year'] % 4 != 0)
+    cycle_impact = 0
+    if row['Party'] == 'D':
+        cycle_impact = -1 if is_midterm else 1
+    else:
+        cycle_impact = 1 if is_midterm else -1
+        
+    return pd.Series([dem_anchor, low_impact, high_impact, cycle_impact], 
+                     index=['Dem_Anchor', 'Low_Impact', 'High_Impact', 'Cycle_Impact'])
+
+# Apply dynamic features based on current slider values
+features_df = df.apply(lambda row: prepare_features(row, low_thresh, high_thresh), axis=1)
+df = pd.concat([df, features_df], axis=1)
+
+# --- Train Model ---
+train_df = df[df['Is_Election'] == 1].dropna(subset=['Dem_House_Vote', 'Approval']).copy()
+
+X = sm.add_constant(train_df[['Dem_Anchor', 'Low_Impact', 'High_Impact', 'Cycle_Impact']])
+y = train_df['Dem_House_Vote']
+
+model = sm.OLS(y, X).fit()
+rse = np.sqrt(model.scale)
+
+# --- Predict Current Scenario ---
 if input_party == "Democrat":
-    pred_anchor = input_approval
-    party_factor = -1
+    curr_anchor = input_approval
+    party_sign = 1 # Used for D perspective logic later
 else:
-    pred_anchor = 100 - input_approval - 4
-    party_factor = 1
+    curr_anchor = 100 - input_approval - 4
+    party_sign = -1
 
-pred_penalty = max(0, 45 - input_approval)
-pred_impact = party_factor * pred_penalty
+# Current Features
+curr_penalty = max(0, low_thresh - input_approval)
+# If D is prez, penalty hurts D (-1). If R is prez, penalty helps D (+1)
+curr_low_impact = -1 * curr_penalty if input_party == "Democrat" else 1 * curr_penalty
 
-exog = pd.DataFrame({'const': [1.0], 'Dem_Anchor': [pred_anchor], 'Low_Approval_Impact': [pred_impact]})
+curr_boost = max(0, input_approval - high_thresh)
+curr_high_impact = 1 * curr_boost if input_party == "Democrat" else -1 * curr_boost
+
+is_curr_midterm = "Midterm" in input_cycle
+curr_cycle_impact = 0
+if input_party == "Democrat":
+    curr_cycle_impact = -1 if is_curr_midterm else 1
+else:
+    curr_cycle_impact = 1 if is_curr_midterm else -1
+
+exog = pd.DataFrame({'const': [1.0], 
+                     'Dem_Anchor': [curr_anchor], 
+                     'Low_Impact': [curr_low_impact],
+                     'High_Impact': [curr_high_impact],
+                     'Cycle_Impact': [curr_cycle_impact]})
+
 pred_dem_mean = model.predict(exog)[0]
 pred_rep_mean = 100 - 4 - pred_dem_mean
 
-# Simulation for Current Forecast (Simplified, not full cycle update for stability)
+# Simulation
 sims = np.random.normal(pred_dem_mean, rse, 10000)
 lb_dem = np.percentile(sims, (100 - confidence_level) / 2)
 ub_dem = np.percentile(sims, 100 - (100 - confidence_level) / 2)
 lb_rep = 100 - 4 - ub_dem
 ub_rep = 100 - 4 - lb_dem
-
-# --- Visualization Logic ---
-hist_df = train_df.copy()
-hist_df['Pred_Dem'] = model.predict(X)
-hist_df['Pred_Rep'] = 100 - 4 - hist_df['Pred_Dem']
-
-# Calculate Interval Width (Z-score * RSE)
-z_score = norm.ppf(1 - (1 - confidence_level/100)/2)
-margin = z_score * rse
-
-hist_df['Dem_Lower'] = hist_df['Pred_Dem'] - margin
-hist_df['Dem_Upper'] = hist_df['Pred_Dem'] + margin
-hist_df['Rep_Lower'] = hist_df['Pred_Rep'] - margin
-hist_df['Rep_Upper'] = hist_df['Pred_Rep'] + margin
-
 
 # --- UI Layout ---
 st.subheader(f"2026 House Forecast (Projected)")
@@ -163,6 +171,19 @@ with col2:
 
 st.markdown("### Historical Validation & Forecast")
 
+# --- Backtesting for Chart ---
+hist_df = train_df.copy()
+hist_df['Pred_Dem'] = model.predict(X)
+hist_df['Pred_Rep'] = 100 - 4 - hist_df['Pred_Dem']
+
+z_score = norm.ppf(1 - (1 - confidence_level/100)/2)
+margin = z_score * rse
+
+hist_df['Dem_Lower'] = hist_df['Pred_Dem'] - margin
+hist_df['Dem_Upper'] = hist_df['Pred_Dem'] + margin
+hist_df['Rep_Lower'] = hist_df['Pred_Rep'] - margin
+hist_df['Rep_Upper'] = hist_df['Pred_Rep'] + margin
+
 tab1, tab2 = st.tabs(["Democratic Forecast", "Republican Forecast"])
 
 def plot_chart(party, hist_actual, hist_pred, hist_lower, hist_upper, curr_mean, curr_lower, curr_upper, c_main, c_light):
@@ -173,6 +194,7 @@ def plot_chart(party, hist_actual, hist_pred, hist_lower, hist_upper, curr_mean,
     ax.fill_between(hist_df['Year'], hist_df[hist_lower], hist_df[hist_upper], color=c_light, alpha=0.15, label=f'{confidence_level}% Conf. Interval')
     # History Lines
     ax.plot(hist_df['Year'], hist_df[hist_actual], marker='o', label='Actual', color=c_main)
+    # NOTE: Fix for KeyError, using exact column names 'Pred_Dem' or 'Pred_Rep'
     ax.plot(hist_df['Year'], hist_df[hist_pred], marker='x', linestyle='--', label='Predicted', color=c_light, alpha=0.7)
     
     # 2026 Forecast
@@ -187,10 +209,12 @@ def plot_chart(party, hist_actual, hist_pred, hist_lower, hist_upper, curr_mean,
     return fig
 
 with tab1:
-    st.pyplot(plot_chart("Dem", 'Dem_House_Vote', 'Predicted_Dem_Vote', 'Dem_Lower', 'Dem_Upper', pred_dem_mean, lb_dem, ub_dem, '#2563eb', '#93c5fd'))
+    # Fix: Pass 'Pred_Dem' instead of 'Predicted_Dem_Vote'
+    st.pyplot(plot_chart("Dem", 'Dem_House_Vote', 'Pred_Dem', 'Dem_Lower', 'Dem_Upper', pred_dem_mean, lb_dem, ub_dem, '#2563eb', '#93c5fd'))
 
 with tab2:
-    st.pyplot(plot_chart("Rep", 'Rep_House_Vote', 'Predicted_Rep_Vote', 'Rep_Lower', 'Rep_Upper', pred_rep_mean, lb_rep, ub_rep, '#ef4444', '#fca5a5'))
+    # Fix: Pass 'Pred_Rep' instead of 'Predicted_Rep_Vote'
+    st.pyplot(plot_chart("Rep", 'Rep_House_Vote', 'Pred_Rep', 'Rep_Lower', 'Rep_Upper', pred_rep_mean, lb_rep, ub_rep, '#ef4444', '#fca5a5'))
 
 with st.expander("Model Statistics"):
     st.write(model.summary())
