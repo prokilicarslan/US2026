@@ -169,6 +169,37 @@ with col1:
 with col2:
     st.markdown(f'<div class="metric-card" style="border-color:#ef4444;"><div class="metric-label rep-Text">Republicans</div><div class="metric-value rep-Text">{pred_rep_mean:.1f}%</div><div style="font-size:0.8rem;color:#94a3b8;">{confidence_level}% Range: {lb_rep:.1f}% — {ub_rep:.1f}%</div></div>', unsafe_allow_html=True)
 
+st.markdown("### Forecasting Uncertainty (Simulation)")
+sim_tab1, sim_tab2 = st.tabs(["Democratic Distribution", "Republican Distribution"])
+
+def plot_simulation(sim_data, title, color_bar, color_line, mean, lb, ub):
+    fig, ax = plt.subplots(figsize=(10, 3), facecolor='#0f172a')
+    ax.set_facecolor('#0f172a')
+    
+    # Histogram
+    ax.hist(sim_data, bins=50, color=color_bar, alpha=0.7, density=True)
+    
+    # Lines
+    ax.axvline(mean, color='red', linewidth=2, label=f'Mean: {mean:.1f}%')
+    ax.axvline(lb, color=color_line, linestyle='--', linewidth=2, label=f'Lower: {lb:.1f}%')
+    ax.axvline(ub, color=color_line, linestyle='--', linewidth=2, label=f'Upper: {ub:.1f}%')
+    
+    ax.set_xlabel("Vote Share (%)", color='#94a3b8')
+    ax.get_yaxis().set_visible(False)
+    ax.tick_params(colors='#94a3b8')
+    ax.spines['bottom'].set_color('#334155'); ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['left'].set_visible(False)
+    ax.legend(facecolor='#1e293b', labelcolor='#f8fafc', edgecolor='#334155', frameon=False, loc='upper right')
+    return fig
+
+with sim_tab1:
+    st.pyplot(plot_simulation(sims, "Democrats", '#3b82f6', '#10b981', pred_dem_mean, lb_dem, ub_dem))
+
+with sim_tab2:
+    # Rep sims = 100 - 4 - dem_sims
+    sims_rep = 100 - 4 - sims
+    st.pyplot(plot_simulation(sims_rep, "Republicans", '#ef4444', '#10b981', pred_rep_mean, lb_rep, ub_rep))
+
+
 st.markdown("### Historical Validation & Forecast")
 
 # --- Backtesting for Chart ---
