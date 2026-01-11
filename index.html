@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presidential Approval & House Vote Model</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.3.0/math.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-light: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+            border-bottom: 1px solid #334155;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #334155;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: var(--text-light);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .metric-box {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .metric-label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-sub {
+            font-size: 1rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .stats-table th,
+        .stats-table td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .stats-table th {
+            color: var(--text-dim);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid #334155;
+            color: var(--text-dim);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .tooltip {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: -5px;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Election Forecaster</h1>
+            <p>Statistical Model: Presidential Approval vs. House Popular Vote (1992-2024)</p>
+        </header>
+
+        <div class="grid">
+            <!-- Sidebar -->
+            <div>
+                <div class="card">
+                    <h2>Prediction Parameters</h2>
+
+                    <div style="margin-bottom: 20px;">
+                        <button id="load2026Btn"
+                            style="background:#ef4444; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; width:100%; font-size:0.9rem; border:1px solid #b91c1c;">
+                            Reset to 2026 Forecast (Trump)
+                        </button>
+                        <p style="font-size:0.8rem; color:#94a3b8; text-align:center; margin-top:5px;">Based on 36%
+                            Approval (Dec '25)</p>
+                    </div>
+
+                    <div class="input-group">
+                        <label>President's Party</label>
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="party" value="D"> Democrat</label>
+                            <label class="radio-option"><input type="radio" name="party" value="R" checked>
+                                Republican</label>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Election Cycle</label>
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="cycle" value="midterm" checked>
+                                Midterm (e.g. '26)</label>
+                            <label class="radio-option"><input type="radio" name="cycle" value="pres"> Presidential
+                                (e.g. '28)</label>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Presidential Approval Rating: <span id="approvalVal"
+                                style="color:var(--text-light); font-weight:bold;">36.0%</span></label>
+                        <input type="range" id="approvalInput" min="20" max="80" step="0.1" value="36.0">
+                    </div>
+
+                    <hr style="border-color: #334155; margin: 20px 0;">
+
+                    <div class="input-group">
+                        <label>Low Approval Threshold: <span id="threshVal" style="color:#ef4444;">45%</span></label>
+                        <p class="tooltip">Approval below this triggers a penalty.</p>
+                        <input type="range" id="threshInput" min="35" max="50" step="1" value="45">
+                    </div>
+
+                    <div class="input-group">
+                        <label>High Approval Threshold: <span id="threshHighVal"
+                                style="color:#10b981;">55%</span></label>
+                        <p class="tooltip">Approval above this triggers a boost.</p>
+                        <input type="range" id="threshHighInput" min="50" max="70" step="1" value="55">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Confidence Interval: <span id="confVal">90%</span></label>
+                        <input type="range" id="confInput" min="50" max="99" step="1" value="90">
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Model Stats (Dynamic)</h2>
+                    <div id="regressionOutput"></div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div>
+                <div class="card">
+                    <h2>2026 House Forecast (Projected)</h2>
+                    <div style="display: flex; gap: 20px;">
+                        <div class="metric-box" style="flex: 1; border: 1px solid #3b82f6;">
+                            <div class="metric-label" style="color:#60a5fa;">Democrats</div>
+                            <div class="metric-value" id="predVoteDem" style="color:#60a5fa;">--%</div>
+                            <div class="metric-sub" id="predIntervalDem"></div>
+                        </div>
+                        <div class="metric-box" style="flex: 1; border: 1px solid #ef4444;">
+                            <div class="metric-label" style="color:#f87171;">Republicans</div>
+                            <div class="metric-value" id="predVoteRep" style="color:#f87171;">--%</div>
+                            <div class="metric-sub" id="predIntervalRep"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Forecasting Uncertainty (Simulation)</h2>
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchSimChart('dem')">Democratic Distribution</button>
+                        <button class="tab-btn" onclick="switchSimChart('rep')">Republican Distribution</button>
+                    </div>
+                    <div id="simDemContainer" style="display:block;">
+                        <div id="simChartDem" style="width:100%; height:250px;"></div>
+                    </div>
+                    <div id="simRepContainer" style="display:none;">
+                        <div id="simChartRep" style="width:100%; height:250px;"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Historical Validation & Trends</h2>
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchChart('dem')">Democratic Vote</button>
+                        <button class="tab-btn" onclick="switchChart('rep')">Republican Vote</button>
+                    </div>
+                    <!-- Divs for charts -->
+                    <div id="demChartContainer" style="display:block;">
+                        <div id="historyChartDem" style="width:100%; height:400px;"></div>
+                    </div>
+                    <div id="repChartContainer" style="display:none;">
+                        <div id="historyChartRep" style="width:100%; height:400px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rawData = [
+            { year: 1992, pres: "Clinton", party: "D", approval: null, house_R: 45.10, house_D: 50.10, is_election: 1 },
+            { year: 1993, pres: "Clinton", party: "D", approval: 48.90, house_R: null, house_D: null, is_election: 0 },
+            { year: 1994, pres: "Clinton", party: "D", approval: 45.90, house_R: 51.50, house_D: 44.70, is_election: 1 },
+            { year: 1995, pres: "Clinton", party: "D", approval: 46.80, house_R: null, house_D: null, is_election: 0 },
+            { year: 1996, pres: "Clinton", party: "D", approval: 55.70, house_R: 48.15, house_D: 48.22, is_election: 1 },
+            { year: 1997, pres: "Clinton", party: "D", approval: 57.00, house_R: null, house_D: null, is_election: 0 },
+            { year: 1998, pres: "Clinton", party: "D", approval: 63.80, house_R: 48.40, house_D: 47.30, is_election: 1 },
+            { year: 1999, pres: "Clinton", party: "D", approval: 59.50, house_R: null, house_D: null, is_election: 0 },
+            { year: 2000, pres: "Clinton", party: "D", approval: 60.70, house_R: 47.60, house_D: 47.10, is_election: 1 },
+            { year: 2001, pres: "GWBush", party: "R", approval: 67.10, house_R: null, house_D: null, is_election: 0 },
+            { year: 2002, pres: "GWBush", party: "R", approval: 71.40, house_R: 50.00, house_D: 45.20, is_election: 1 },
+            { year: 2003, pres: "GWBush", party: "R", approval: 59.60, house_R: null, house_D: null, is_election: 0 },
+            { year: 2004, pres: "GWBush", party: "R", approval: 50.10, house_R: 49.40, house_D: 46.80, is_election: 1 },
+            { year: 2005, pres: "GWBush", party: "R", approval: 46.10, house_R: null, house_D: null, is_election: 0 },
+            { year: 2006, pres: "GWBush", party: "R", approval: 39.80, house_R: 44.30, house_D: 52.30, is_election: 1 },
+            { year: 2007, pres: "GWBush", party: "R", approval: 33.30, house_R: null, house_D: null, is_election: 0 },
+            { year: 2008, pres: "GWBush", party: "R", approval: 26.90, house_R: 42.60, house_D: 53.20, is_election: 1 },
+            { year: 2009, pres: "Obama", party: "D", approval: 57.20, house_R: null, house_D: null, is_election: 0 },
+            { year: 2010, pres: "Obama", party: "D", approval: 46.70, house_R: 51.70, house_D: 44.90, is_election: 1 },
+            { year: 2011, pres: "Obama", party: "D", approval: 44.40, house_R: null, house_D: null, is_election: 0 },
+            { year: 2012, pres: "Obama", party: "D", approval: 47.90, house_R: 47.70, house_D: 48.80, is_election: 1 },
+            { year: 2013, pres: "Obama", party: "D", approval: 45.90, house_R: null, house_D: null, is_election: 0 },
+            { year: 2014, pres: "Obama", party: "D", approval: 42.60, house_R: 51.20, house_D: 45.50, is_election: 1 },
+            { year: 2015, pres: "Obama", party: "D", approval: 46.50, house_R: null, house_D: null, is_election: 0 },
+            { year: 2016, pres: "Obama", party: "D", approval: 51.00, house_R: 48.30, house_D: 47.30, is_election: 1 },
+            { year: 2017, pres: "Trump", party: "R", approval: 38.40, house_R: null, house_D: null, is_election: 0 },
+            { year: 2018, pres: "Trump", party: "R", approval: 40.40, house_R: 44.80, house_D: 53.40, is_election: 1 },
+            { year: 2019, pres: "Trump", party: "R", approval: 42.20, house_R: null, house_D: null, is_election: 0 },
+            { year: 2020, pres: "Trump", party: "R", approval: 42.80, house_R: 47.20, house_D: 50.30, is_election: 1 },
+            { year: 2021, pres: "Biden", party: "D", approval: 48.90, house_R: null, house_D: null, is_election: 0 },
+            { year: 2022, pres: "Biden", party: "D", approval: 41.00, house_R: 50.00, house_D: 47.30, is_election: 1 },
+            { year: 2023, pres: "Biden", party: "D", approval: 39.80, house_R: null, house_D: null, is_election: 0 },
+            { year: 2024, pres: "Biden", party: "D", approval: 39.10, house_R: 49.80, house_D: 47.20, is_election: 1 },
+            { year: 2025, pres: "Trump", party: "R", approval: 41.00, house_R: null, house_D: null, is_election: 0 }
+        ];
+
+        let currentModel = {};
+
+        function trainModel(lowThreshold, highThreshold) {
+            // Preprocess with DYNAMIC thresholds
+            const trainData = rawData.filter(d => d.is_election === 1 && d.approval !== null).map(d => {
+                let demAnchor = (d.party === 'D') ? d.approval : (100 - d.approval - 4);
+
+                // Low Penalty
+                let penalty = Math.max(0, lowThreshold - d.approval);
+                let lowAppImpact = (d.party === 'D') ? -1 * penalty : 1 * penalty;
+
+                // High Boost
+                let boost = Math.max(0, d.approval - highThreshold);
+                let highAppImpact = (d.party === 'D') ? 1 * boost : -1 * boost;
+
+                // Cycle Effect
+                const isMidterm = (d.year % 4 !== 0);
+                let cycleImpact = 0;
+                if (d.party === 'D') {
+                    cycleImpact = isMidterm ? -1 : 1;
+                } else {
+                    cycleImpact = isMidterm ? 1 : -1;
+                }
+
+                return { ...d, demAnchor, lowAppImpact, highAppImpact, cycleImpact, y: d.house_D };
+            });
+
+            // OLS fit (5 params: Const, Anchor, LowPenalty, HighBoost, Cycle)
+            const X = trainData.map(d => [1, d.demAnchor, d.lowAppImpact, d.highAppImpact, d.cycleImpact]);
+            const y = trainData.map(d => d.y);
+            const X_mat = math.matrix(X);
+            const y_mat = math.matrix(y);
+            const Xt = math.transpose(X_mat);
+            const XtX = math.multiply(Xt, X_mat);
+            const XtX_inv = math.inv(XtX);
+            const XtY = math.multiply(Xt, y_mat);
+            const beta = math.multiply(XtX_inv, XtY);
+            const coeffs = beta.toArray();
+
+            // Residuals
+            let ssr = 0;
+            const preds = [];
+            for (let i = 0; i < trainData.length; i++) {
+                const pred = coeffs[0] + coeffs[1] * X[i][1] + coeffs[2] * X[i][2] + coeffs[3] * X[i][3] + coeffs[4] * X[i][4];
+                preds.push(pred);
+                ssr += (y[i] - pred) ** 2;
+            }
+            const rse = Math.sqrt(ssr / (trainData.length - 5));
+
+            return { coeffs, rse, trainData, predictions: preds };
+        }
+
+        function getZScore(conf) {
+            if (conf >= 99) return 2.576;
+            if (conf >= 95) return 1.960;
+            if (conf >= 90) return 1.645;
+            return 1.645 + (conf - 90) * (1.96 - 1.645) / 5; // roughly
+        }
+
+        function update() {
+            const approval = parseFloat(document.getElementById('approvalInput').value);
+            const party = document.querySelector('input[name="party"]:checked').value;
+            const cycle = document.querySelector('input[name="cycle"]:checked').value;
+            const confidence = parseFloat(document.getElementById('confInput').value);
+            const lowThresh = parseFloat(document.getElementById('threshInput').value);
+            const highThresh = parseFloat(document.getElementById('threshHighInput').value);
+
+            // Update Labels
+            document.getElementById('approvalVal').textContent = approval.toFixed(1) + "%";
+            document.getElementById('confVal').textContent = confidence + "%";
+            document.getElementById('threshVal').textContent = lowThresh + "%";
+            document.getElementById('threshHighVal').textContent = highThresh + "%";
+
+            // 1. RE-TRAIN MODEL 
+            currentModel = trainModel(lowThresh, highThresh);
+
+            // 2. Predict Current
+            const penalty = Math.max(0, lowThresh - approval);
+            let predAnchor = (party === 'D') ? approval : (100 - approval - 4);
+            let predImpact = (party === 'D') ? -1 * penalty : 1 * penalty;
+
+            const boost = Math.max(0, approval - highThresh);
+            let predHighImpact = (party === 'D') ? 1 * boost : -1 * boost;
+
+            let predCycle = 0;
+            const isMidterm = (cycle === 'midterm');
+            if (party === 'D') {
+                predCycle = isMidterm ? -1 : 1;
+            } else {
+                predCycle = isMidterm ? 1 : -1;
+            }
+
+            const meanVote = currentModel.coeffs[0] + currentModel.coeffs[1] * predAnchor + currentModel.coeffs[2] * predImpact +
+                currentModel.coeffs[3] * predHighImpact + currentModel.coeffs[4] * predCycle;
+
+            // 3. Stats UI (Compact)
+            const statsHtml = `
+            <table class="stats-table">
+                <tr><th>Intercept</th><td>${currentModel.coeffs[0].toFixed(3)}</td><th>Cycle Coeff</th><td>${currentModel.coeffs[4].toFixed(3)}</td></tr>
+                <tr><th>Anchor</th><td>${currentModel.coeffs[1].toFixed(3)}</td><th>RSE</th><td>${currentModel.rse.toFixed(3)}</td></tr>
+                <tr><th>Low Pen</th><td>${currentModel.coeffs[2].toFixed(3)}</td></tr>
+                <tr><th>High Boost</th><td>${currentModel.coeffs[3].toFixed(3)}</td></tr>
+            </table>`;
+            document.getElementById('regressionOutput').innerHTML = statsHtml;
+
+            // 4. Simulation Interval
+            const nSims = 10000;
+            const sims = [];
+            for (let i = 0; i < nSims; i++) {
+                let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random();
+                const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                sims.push(meanVote + z * currentModel.rse);
+            }
+            sims.sort((a, b) => a - b);
+            const lowIdx = Math.floor(nSims * (100 - confidence) / 200);
+            const highIdx = Math.floor(nSims * (1 - (100 - confidence) / 200));
+            const lb = sims[lowIdx];
+            const ub = sims[highIdx];
+
+            // Rep Implied
+            const meanVoteRep = 100 - 4 - meanVote;
+            const lbRep = 100 - 4 - ub;
+            const ubRep = 100 - 4 - lb;
+
+            document.getElementById('predVoteDem').textContent = meanVote.toFixed(1) + "%";
+            document.getElementById('predIntervalDem').textContent = `${confidence}% Interval: ${lb.toFixed(1)}% — ${ub.toFixed(1)}%`;
+            document.getElementById('predVoteRep').textContent = meanVoteRep.toFixed(1) + "%";
+            document.getElementById('predIntervalRep').textContent = `${confidence}% Interval: ${lbRep.toFixed(1)}% — ${ubRep.toFixed(1)}%`;
+
+            plotSimulation(sims, meanVote, lb, ub, meanVoteRep, lbRep, ubRep);
+            plotValidation(confidence, meanVote, lb, ub, meanVoteRep, lbRep, ubRep);
+        }
+
+        function plotSimulation(sims, mean, lower, upper, meanRep, lowerRep, upperRep) {
+            // Dem
+            const traceD = { x: sims, type: 'histogram', marker: { color: '#3b82f6', opacity: 0.7 }, name: 'Dem Votes' };
+            const layoutD = { margin: { t: 10, l: 30, r: 10, b: 30 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', xaxis: { title: 'Democratic Vote Share (%)', color: '#94a3b8' }, yaxis: { showgrid: false, showticklabels: false }, showlegend: false, shapes: [{ type: 'line', x0: mean, x1: mean, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', width: 3 } }, { type: 'line', x0: lower, x1: lower, y0: 0, y1: 1, yref: 'paper', line: { color: '#10b981', width: 2, dash: 'dot' } }, { type: 'line', x0: upper, x1: upper, y0: 0, y1: 1, yref: 'paper', line: { color: '#10b981', width: 2, dash: 'dot' } }] };
+            Plotly.newPlot('simChartDem', [traceD], layoutD, { displayModeBar: false });
+
+            // Rep
+            // Rep votes = 100 - 4 - DemVotes. So we transform sims.
+            const simsRep = sims.map(d => 100 - 4 - d);
+            const traceR = { x: simsRep, type: 'histogram', marker: { color: '#ef4444', opacity: 0.7 }, name: 'Rep Votes' };
+            const layoutR = { margin: { t: 10, l: 30, r: 10, b: 30 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', xaxis: { title: 'Republican Vote Share (%)', color: '#94a3b8' }, yaxis: { showgrid: false, showticklabels: false }, showlegend: false, shapes: [{ type: 'line', x0: meanRep, x1: meanRep, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', width: 3 } }, { type: 'line', x0: lowerRep, x1: lowerRep, y0: 0, y1: 1, yref: 'paper', line: { color: '#10b981', width: 2, dash: 'dot' } }, { type: 'line', x0: upperRep, x1: upperRep, y0: 0, y1: 1, yref: 'paper', line: { color: '#10b981', width: 2, dash: 'dot' } }] };
+            Plotly.newPlot('simChartRep', [traceR], layoutR, { displayModeBar: false });
+        }
+
+        function plotValidation(conf, currDem, currDemL, currDemU, currRep, currRepL, currRepU) {
+            const years = currentModel.trainData.map(d => d.year);
+            const actualsDem = currentModel.trainData.map(d => d.y);
+            const predsDem = currentModel.predictions;
+            const actualsRep = currentModel.trainData.map(d => d.house_R);
+            const predsRep = currentModel.predictions.map(d => 100 - 4 - d);
+
+            const z = getZScore(conf);
+            const margin = z * currentModel.rse;
+            const upperDem = predsDem.map(v => v + margin);
+            const lowerDem = predsDem.map(v => v - margin);
+            const upperRep = predsRep.map(v => v + margin);
+            const lowerRep = predsRep.map(v => v - margin);
+
+            // DEM PLOT
+            Plotly.newPlot('historyChartDem', [
+                { x: years, y: lowerDem, type: 'scatter', mode: 'none', showlegend: false, hoverinfo: 'skip' },
+                { x: years, y: upperDem, fill: 'tonexty', type: 'scatter', mode: 'none', fillcolor: 'rgba(59, 130, 246, 0.25)', name: `${conf}% Interval`, hoverinfo: 'skip' },
+                { x: years, y: actualsDem, mode: 'lines+markers', name: 'Actual', line: { color: '#2563eb' } },
+                { x: years, y: predsDem, mode: 'lines', name: 'Predicted', line: { color: '#93c5fd', dash: 'dash' } },
+                { x: [2026], y: [currDem], mode: 'markers+text', name: '2026 Forecast', marker: { size: 14, color: '#10b981', symbol: 'star' }, text: [`${currDem.toFixed(1)}%`], textposition: 'top center', error_y: { type: 'data', array: [currDemU - currDem], arrayminus: [currDem - currDemL], color: '#10b981' } }
+            ], { margin: { t: 10, l: 40, r: 10, b: 40 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', xaxis: { title: 'Year', color: '#94a3b8' }, yaxis: { title: 'Vote %', color: '#94a3b8', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.1, font: { color: '#f8fafc' } } }, { displayModeBar: false });
+
+            // REP PLOT
+            Plotly.newPlot('historyChartRep', [
+                { x: years, y: lowerRep, type: 'scatter', mode: 'none', showlegend: false, hoverinfo: 'skip' },
+                { x: years, y: upperRep, fill: 'tonexty', type: 'scatter', mode: 'none', fillcolor: 'rgba(239, 68, 68, 0.25)', name: `${conf}% Interval`, hoverinfo: 'skip' },
+                { x: years, y: actualsRep, mode: 'lines+markers', name: 'Actual', line: { color: '#ef4444' } },
+                { x: years, y: predsRep, mode: 'lines', name: 'Predicted', line: { color: '#fca5a5', dash: 'dash' } },
+                { x: [2026], y: [currRep], mode: 'markers+text', name: '2026 Forecast', marker: { size: 14, color: '#10b981', symbol: 'star' }, text: [`${currRep.toFixed(1)}%`], textposition: 'top center', error_y: { type: 'data', array: [currRepU - currRep], arrayminus: [currRep - currRepL], color: '#10b981' } }
+            ], { margin: { t: 10, l: 40, r: 10, b: 40 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', xaxis: { title: 'Year', color: '#94a3b8' }, yaxis: { title: 'Vote %', color: '#94a3b8', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.1, font: { color: '#f8fafc' } } }, { displayModeBar: false });
+        }
+
+        window.switchSimChart = function (type) {
+            document.querySelectorAll('#simDemContainer, #simRepContainer').forEach(el => el.style.display = 'none');
+            // Note: this clears all tabs, might need specific targeting if I share class. 
+            // Let's rely on event target or specific IDs. 
+            // Simplest: just use the button passed or manually toggle.
+            // Actually, the tab-btn class is shared with history chart. I should fix the selector or use specific parents.
+            document.querySelectorAll('.card:nth-child(2) .tab-btn').forEach(b => b.classList.remove('active'));
+            if (type === 'dem') {
+                document.getElementById('simDemContainer').style.display = 'block';
+                // Selectively update button active state in that specific container if possible, or just hack it
+                // Let's fix the tab switching logic to be more robust in next turn if needed, but for now specific targeting:
+                document.querySelector(".card:nth-child(2) .tab-btn:nth-child(1)").classList.add('active');
+            } else {
+                document.getElementById('simRepContainer').style.display = 'block';
+                document.querySelector(".card:nth-child(2) .tab-btn:nth-child(2)").classList.add('active');
+            }
+            window.dispatchEvent(new Event('resize'));
+        }
+
+        // Adjusted switchChart for robustness
+        window.switchChart = function (type) {
+            // Only target buttons in the History Card (last one)
+            const btns = document.querySelectorAll('.card:last-child .tab-btn');
+            btns.forEach(b => b.classList.remove('active'));
+
+            if (type === 'dem') {
+                document.getElementById('demChartContainer').style.display = 'block';
+                document.getElementById('repChartContainer').style.display = 'none';
+                btns[0].classList.add('active');
+            } else {
+                document.getElementById('demChartContainer').style.display = 'none';
+                document.getElementById('repChartContainer').style.display = 'block';
+                btns[1].classList.add('active');
+            }
+            window.dispatchEvent(new Event('resize'));
+        }
+
+        document.getElementById('load2026Btn').addEventListener('click', () => {
+            document.querySelector('input[name="party"][value="R"]').checked = true;
+            document.querySelector('input[name="cycle"][value="midterm"]').checked = true;
+            document.getElementById('approvalInput').value = 36.0;
+            document.getElementById('threshInput').value = 45;
+            document.getElementById('threshHighInput').value = 55;
+            update();
+        });
+
+        document.getElementById('approvalInput').addEventListener('input', update);
+        document.getElementById('confInput').addEventListener('input', update);
+        document.getElementById('threshInput').addEventListener('input', update);
+        document.getElementById('threshHighInput').addEventListener('input', update);
+        document.querySelectorAll('input[name="party"]').forEach(el => el.addEventListener('change', update));
+        document.querySelectorAll('input[name="cycle"]').forEach(el => el.addEventListener('change', update));
+
+        update();
+    </script>
+</body>
+
+```
