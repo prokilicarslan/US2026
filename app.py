@@ -34,35 +34,59 @@ def fetch_live_approval():
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=5)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Simple extraction logic would go here. For stability in this demo, we assume the fallback 
-        # unless robust parsing is added. The user saw 36% in browser, so we trust that.
+        if response.status_code == 200:
+             # Basic check, if we really wanted to parse we would.
+             # For now, returning default to ensure stability as requested.
+             return default_data
         return default_data
 
     except Exception:
         return default_data
 
-# --- Data Loading ---
+# --- Data Loading (Hardcoded for Stability) ---
 @st.cache_data
 def load_data():
-    try:
-        return pd.read_csv("data/historical_data.csv")
-    except FileNotFoundError:
-        return pd.DataFrame() # handle gracefully
+    data = [
+        {"Year": 1992, "President": "Clinton", "Party": "D", "Approval": np.nan, "Rep_House_Vote": 45.10, "Dem_House_Vote": 50.10, "Is_Election": 1},
+        {"Year": 1993, "President": "Clinton", "Party": "D", "Approval": 48.90, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 1994, "President": "Clinton", "Party": "D", "Approval": 45.90, "Rep_House_Vote": 51.50, "Dem_House_Vote": 44.70, "Is_Election": 1},
+        {"Year": 1995, "President": "Clinton", "Party": "D", "Approval": 46.80, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 1996, "President": "Clinton", "Party": "D", "Approval": 55.70, "Rep_House_Vote": 48.15, "Dem_House_Vote": 48.22, "Is_Election": 1},
+        {"Year": 1997, "President": "Clinton", "Party": "D", "Approval": 57.00, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 1998, "President": "Clinton", "Party": "D", "Approval": 63.80, "Rep_House_Vote": 48.40, "Dem_House_Vote": 47.30, "Is_Election": 1},
+        {"Year": 1999, "President": "Clinton", "Party": "D", "Approval": 59.50, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2000, "President": "Clinton", "Party": "D", "Approval": 60.70, "Rep_House_Vote": 47.60, "Dem_House_Vote": 47.10, "Is_Election": 1},
+        {"Year": 2001, "President": "GWBush", "Party": "R", "Approval": 67.10, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2002, "President": "GWBush", "Party": "R", "Approval": 71.40, "Rep_House_Vote": 50.00, "Dem_House_Vote": 45.20, "Is_Election": 1},
+        {"Year": 2003, "President": "GWBush", "Party": "R", "Approval": 59.60, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2004, "President": "GWBush", "Party": "R", "Approval": 50.10, "Rep_House_Vote": 49.40, "Dem_House_Vote": 46.80, "Is_Election": 1},
+        {"Year": 2005, "President": "GWBush", "Party": "R", "Approval": 46.10, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2006, "President": "GWBush", "Party": "R", "Approval": 39.80, "Rep_House_Vote": 44.30, "Dem_House_Vote": 52.30, "Is_Election": 1},
+        {"Year": 2007, "President": "GWBush", "Party": "R", "Approval": 33.30, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2008, "President": "GWBush", "Party": "R", "Approval": 26.90, "Rep_House_Vote": 42.60, "Dem_House_Vote": 53.20, "Is_Election": 1},
+        {"Year": 2009, "President": "Obama", "Party": "D", "Approval": 57.20, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2010, "President": "Obama", "Party": "D", "Approval": 46.70, "Rep_House_Vote": 51.70, "Dem_House_Vote": 44.90, "Is_Election": 1},
+        {"Year": 2011, "President": "Obama", "Party": "D", "Approval": 44.40, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2012, "President": "Obama", "Party": "D", "Approval": 47.90, "Rep_House_Vote": 47.70, "Dem_House_Vote": 48.80, "Is_Election": 1},
+        {"Year": 2013, "President": "Obama", "Party": "D", "Approval": 45.90, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2014, "President": "Obama", "Party": "D", "Approval": 42.60, "Rep_House_Vote": 51.20, "Dem_House_Vote": 45.50, "Is_Election": 1},
+        {"Year": 2015, "President": "Obama", "Party": "D", "Approval": 46.50, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2016, "President": "Obama", "Party": "D", "Approval": 51.00, "Rep_House_Vote": 48.30, "Dem_House_Vote": 47.30, "Is_Election": 1},
+        {"Year": 2017, "President": "Trump", "Party": "R", "Approval": 38.40, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2018, "President": "Trump", "Party": "R", "Approval": 40.40, "Rep_House_Vote": 44.80, "Dem_House_Vote": 53.40, "Is_Election": 1},
+        {"Year": 2019, "President": "Trump", "Party": "R", "Approval": 42.20, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2020, "President": "Trump", "Party": "R", "Approval": 42.80, "Rep_House_Vote": 47.20, "Dem_House_Vote": 50.30, "Is_Election": 1},
+        {"Year": 2021, "President": "Biden", "Party": "D", "Approval": 48.90, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2022, "President": "Biden", "Party": "D", "Approval": 41.00, "Rep_House_Vote": 50.00, "Dem_House_Vote": 47.30, "Is_Election": 1},
+        {"Year": 2023, "President": "Biden", "Party": "D", "Approval": 39.80, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0},
+        {"Year": 2024, "President": "Biden", "Party": "D", "Approval": 39.10, "Rep_House_Vote": 49.80, "Dem_House_Vote": 47.20, "Is_Election": 1},
+        {"Year": 2025, "President": "Trump", "Party": "R", "Approval": 41.00, "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0}
+    ]
+    return pd.DataFrame(data)
 
 # Initialize Data
 live_data = fetch_live_approval()
 df = load_data()
-
-# Add 2025 Context
-if not ((df['Year'] == 2025) & (df['President'] == 'Trump')).any():
-    new_row = pd.DataFrame([{
-        "Year": 2025, "President": "Trump", "Party": "R", 
-        "Approval": live_data['year_avg'], "Rep_House_Vote": np.nan, "Dem_House_Vote": np.nan, "Is_Election": 0
-    }])
-    df = pd.concat([df, new_row], ignore_index=True)
-
 
 # --- Preprocessing ---
 def calculate_anchors(row):
@@ -107,7 +131,7 @@ exog = pd.DataFrame({'const': [1.0], 'Dem_Anchor': [pred_anchor], 'Low_Approval_
 pred_dem_mean = model.predict(exog)[0]
 pred_rep_mean = 100 - 4 - pred_dem_mean
 
-# Simulation for Current Forecast
+# Simulation for Current Forecast (Simplified, not full cycle update for stability)
 sims = np.random.normal(pred_dem_mean, rse, 10000)
 lb_dem = np.percentile(sims, (100 - confidence_level) / 2)
 ub_dem = np.percentile(sims, 100 - (100 - confidence_level) / 2)
@@ -115,10 +139,6 @@ lb_rep = 100 - 4 - ub_dem
 ub_rep = 100 - 4 - lb_dem
 
 # --- Visualization Logic ---
-# Calculate Historical Prediction Intervals
-all_exog = sm.add_constant(df[['Dem_Anchor', 'Low_Approval_Impact']].dropna())
-# Use the index from all_exog to map back to df
-# Actually, simpler to just predict on training set + 2026 point for the chart
 hist_df = train_df.copy()
 hist_df['Pred_Dem'] = model.predict(X)
 hist_df['Pred_Rep'] = 100 - 4 - hist_df['Pred_Dem']
